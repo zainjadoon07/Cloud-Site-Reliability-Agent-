@@ -93,3 +93,28 @@ def test_list_and_get_incidents():
     # Check that our ID is in the list
     ids = [r["incident_id"] for r in reports]
     assert incident_id in ids
+
+def test_multi_agent_findings_merging():
+    """
+    Test that the LangGraph Orchestrator parallel agents execute 
+    and successfully merge metrics, logs, and deployment findings into the evidence.
+    """
+    payload = {
+        "service": "payment-api",
+        "error_rate": "15%",
+        "cpu": "92%",
+        "deployment": "v1.4.2",
+        "logs": [
+            "ERROR: Database connection timeout",
+            "Failed to connect to database"
+        ]
+    }
+    response = client.post("/incident", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Verify the synthesizer successfully received and merged findings from the three specialized agents
+    evidence_str = " ".join(data["evidence"]).lower()
+    assert "metrics finding:" in evidence_str
+    assert "logs finding:" in evidence_str
+    assert "deployment finding:" in evidence_str

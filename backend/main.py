@@ -7,7 +7,8 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ai-agents")))
 
 # pyrefly: ignore [missing-import]
-from root_cause_agent import RootCauseAgent, SREAgentState
+from orchestrator import SREOrchestrator
+from root_cause_agent import SREAgentState
 from models import IncidentPayload, SREAnalysisReport
 from database import IncidentRepository
 
@@ -17,8 +18,8 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Instantiate the AI Root Cause Agent
-agent = RootCauseAgent()
+# Instantiate the SRE LangGraph Orchestrator
+orchestrator = SREOrchestrator()
 
 @app.get("/health")
 async def health_check():
@@ -29,7 +30,7 @@ async def health_check():
         "status": "healthy",
         "service": "AI-SRE Backend",
         "version": "0.1.0",
-        "bedrock_active": agent.use_bedrock
+        "bedrock_active": orchestrator.use_bedrock
     }
 
 @app.post("/incident", response_model=SREAnalysisReport)
@@ -57,11 +58,11 @@ async def analyze_incident(payload: IncidentPayload):
         "recommendation": ""
     }
     
-    # 3. Run AI Root Cause Analysis node
+    # 3. Run AI Root Cause Analysis via LangGraph Orchestrator
     try:
-        updated_state = agent.analyze_incident(state)
+        updated_state = orchestrator.run_analysis(state)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI Engine failed to run: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI Orchestrator failed to run: {str(e)}")
         
     # 4. Construct response report object
     report = SREAnalysisReport(
