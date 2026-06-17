@@ -118,3 +118,44 @@ def test_multi_agent_findings_merging():
     assert "metrics finding:" in evidence_str
     assert "logs finding:" in evidence_str
     assert "deployment finding:" in evidence_str
+
+def test_connect_aws_account():
+    """
+    Test registering a customer AWS account configuration.
+    """
+    payload = {
+        "account_id": "123456789012",
+        "role_arn": "arn:aws:iam::123456789012:role/SREConnectionRole"
+    }
+    response = client.post("/aws-account", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "connected"
+    assert data["account_id"] == "123456789012"
+
+def test_collect_and_analyze_incident():
+    """
+    Test the full AWS collector-driven incident analysis flow.
+    It registers the account, calls the collector to retrieve (or fall back) metrics,
+    and runs the multi-agent SRE graph analysis.
+    """
+    # 1. Ensure the account is connected first
+    account_payload = {
+        "account_id": "987654321012",
+        "role_arn": "arn:aws:iam::987654321012:role/SREConnectionRole"
+    }
+    client.post("/aws-account", json=account_payload)
+
+    # 2. Trigger the automated SRE analysis flow
+    payload = {
+        "service": "payment-api",
+        "account_id": "987654321012",
+        "deployment": "v1.4.2"
+    }
+    response = client.post("/collect-incident", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["service"] == "payment-api"
+    # Fallback telemetry error triggers database failure diagnostic rules
+    assert "database" in data["root_cause"].lower() or "db" in data["root_cause"].lower()
+    assert len(data["evidence"]) >= 3

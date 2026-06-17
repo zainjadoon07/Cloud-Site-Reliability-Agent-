@@ -7,17 +7,20 @@ from root_cause_agent import SREAgentState
 class DeploymentAgent:
     def __init__(self):
         self.aws_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+        
+        # Check if Bedrock is explicitly enabled via environment configuration
+        env_enabled = os.environ.get("USE_BEDROCK", "false").lower() == "true"
         self.use_bedrock = False
         
-        try:
-            self.bedrock = boto3.client(
-                service_name="bedrock-runtime",
-                region_name=self.aws_region
-            )
-            if os.environ.get("AWS_ACCESS_KEY_ID") or os.environ.get("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") or os.path.exists(os.path.expanduser("~/.aws/credentials")):
+        if env_enabled:
+            try:
+                self.bedrock = boto3.client(
+                    service_name="bedrock-runtime",
+                    region_name=self.aws_region
+                )
                 self.use_bedrock = True
-        except Exception:
-            self.use_bedrock = False
+            except Exception:
+                self.use_bedrock = False
 
     def _generate_mock_findings(self, state: SREAgentState) -> str:
         version = state.get('deployment', '').strip()

@@ -7,23 +7,28 @@ from root_cause_agent import SREAgentState
 class MetricsAgent:
     def __init__(self):
         self.aws_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+        
+        # Check if Bedrock is explicitly enabled via environment configuration
+        env_enabled = os.environ.get("USE_BEDROCK", "false").lower() == "true"
         self.use_bedrock = False
         
-        try:
-            self.bedrock = boto3.client(
-                service_name="bedrock-runtime",
-                region_name=self.aws_region
-            )
-            if os.environ.get("AWS_ACCESS_KEY_ID") or os.environ.get("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") or os.path.exists(os.path.expanduser("~/.aws/credentials")):
+        if env_enabled:
+            try:
+                self.bedrock = boto3.client(
+                    service_name="bedrock-runtime",
+                    region_name=self.aws_region
+                )
                 self.use_bedrock = True
-        except Exception:
-            self.use_bedrock = False
+            except Exception:
+                self.use_bedrock = False
 
     def _generate_mock_findings(self, state: SREAgentState) -> str:
         cpu_val = 0.0
         try:
-            cpu_val = float(state['cpu'].replace("%", "").strip())
-        except ValueError:
+            # Extract only the numeric prefix before the '%' symbol to support mock text
+            cpu_clean = state['cpu'].split("%")[0].strip()
+            cpu_val = float(cpu_clean)
+        except Exception:
             pass
 
         findings = []
@@ -36,12 +41,13 @@ class MetricsAgent:
 
         if "%" in state['error_rate']:
             try:
-                err_val = float(state['error_rate'].replace("%", "").strip())
+                err_clean = state['error_rate'].split("%")[0].strip()
+                err_val = float(err_clean)
                 if err_val > 10.0:
                     findings.append(f"CRITICAL: Error rate is at {state['error_rate']}, which exceeds the standard 1% reliability threshold.")
                 elif err_val > 2.0:
                     findings.append(f"WARNING: Error rate is elevated at {state['error_rate']}.")
-            except ValueError:
+            except Exception:
                 pass
         
         return " | ".join(findings)
